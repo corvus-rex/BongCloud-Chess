@@ -19,7 +19,7 @@ import (
 )
 
 func main() {
-	//  1. Config 
+	//  1. Config
 	cfg, err := config.Load()
 	if err != nil {
 		// Logger isn't ready yet — write to stderr and exit
@@ -36,13 +36,13 @@ func main() {
 		zap.String("version", cfg.App.Version),
 	)
 
-	//  3. MongoDB 
+	//  3. MongoDB
 	mongo, err := database.NewMongoDB(cfg.Mongo, log)
 	if err != nil {
 		log.Fatal("failed to connect to MongoDB", zap.Error(err))
 	}
 
-	//  4. Redis 
+	//  4. Redis
 	redis, err := cache.NewRedisClient(cfg.Redis, log)
 	if err != nil {
 		log.Fatal("failed to connect to Redis", zap.Error(err))
@@ -51,7 +51,7 @@ func main() {
 	//  5. WebSocket upgrader
 	upgrader := ws.NewUpgrader(cfg.WebSocket, log)
 
-	//  6. HTTP Server 
+	//  6. HTTP Server
 	srv := server.New(server.Dependencies{
 		Config:   cfg,
 		Log:      log,
@@ -60,7 +60,7 @@ func main() {
 		Upgrader: upgrader,
 	})
 
-	//  7. Start + graceful shutdown 
+	//  7. Start + graceful shutdown
 	// Run the server in a goroutine so we can listen for OS signals concurrently.
 	serverErr := make(chan error, 1)
 	go func() {

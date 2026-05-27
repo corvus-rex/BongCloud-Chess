@@ -1,0 +1,108 @@
+name: bongcloud-chess
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  BongCloud Chess — Docker Compose (local development)
+#
+#  Starts three services:
+#    mongo   — MongoDB 7 with a named volume for persistence
+#    redis   — Redis 7 with AOF persistence + password
+#    app     — Go service with live-reload via Air (or plain binary)
+#
+#  Usage:
+#    docker compose up          # start all services
+#    docker compose up -d       # detached
+#    docker compose down -v     # stop and remove volumes
+#    docker compose logs -f app # tail application logs
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── MongoDB ────────────────────────────────────────────────────────────────
+  mongo:
+    image: mongo:7.0
+    container_name: bongcloud_mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: secret
+      MONGO_INITDB_DATABASE: bongcloud
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+      - ./docker/mongo/init.js:/docker-entrypoint-initdb.d/init.js:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - bongcloud
+
+  # Redis
+  redis:
+    image: redis:7.2-alpine
+    container_name: bongcloud_redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --requirepass secret
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "secret", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - bongcloud
+
+  # Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner          # Change to 'builder' to skip distroless for debug
+      args:
+        VERSION: ${APP_VERSION:-dev}
+    container_name: bongcloud_app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Override specific values for the Docker network
+      MONGO_URI: mongodb://root:secret@mongo:27017
+      REDIS_HOST: redis
+      REDIS_PASSWORD: secret
+      APP_ENV: development
+      LOG_ENCODING: console
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - bongcloud
+
+#  Volumes 
+volumes:
+  mongo_data:
+    name: bongcloud_mongo_data
+  redis_data:
+    name: bongcloud_redis_data
+
+#  Networks 
+networks:
+  bongcloud:
+    name: bongcloud_network
+    driver: bridge

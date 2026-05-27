@@ -38,3 +38,11 @@ func New(level, encoding, appName, version string) (*zap.Logger, error) {
 
 	return log, nil
 }
+
+func Must(level, encoding, appName, version string) *zap.Logger {
+	log, err := New(level, encoding, appName, version)
+	if err != nil {
+		panic(err)
+	}
+	return log
+}
